@@ -6,6 +6,8 @@ export async function POST(req: Request) {
   try {
     const { messages } = await req.json();
 
+    const encoder = new TextEncoder();
+
     // Create a new ReadableStream
     const stream = new ReadableStream({
       async start(controller) {
@@ -121,6 +123,29 @@ Sales[Profit] = Sales[SalesAmount] - Sales[TotalCost]
 \`\`\`
 
 Would you like to learn about more advanced DAX functions or visualization techniques in Power BI?`;
+        } else if (userQuery.toLowerCase().includes("asp.net")) {
+          response = `Here's an example of a Microsoft Learn module summary:
+
+**Module:** Create a web API with ASP.NET Core
+
+In this module, you will:
+- Learn the basics of RESTful APIs and HTTP methods.
+- Build a simple web API using ASP.NET Core.
+- Implement CRUD operations (Create, Read, Update, Delete).
+- Test your API endpoints with tools like Postman or curl.
+
+\`\`\`csharp
+// Example: Minimal API in ASP.NET Core
+var builder = WebApplication.CreateBuilder(args);
+var app = builder.Build();
+
+app.MapGet("/hello", () => "Hello, Microsoft Learn!");
+
+app.Run();
+\`\`\`
+
+You can find more learning paths and modules at [Microsoft Learn](https://learn.microsoft.com/training/).
+`;
         } else {
           response = `Welcome to Microsoft Learn Copilot! I can help you with various Microsoft technologies.
 
@@ -181,8 +206,6 @@ What Microsoft technology would you like to learn about today?`;
         controller.close();
       },
     });
-
-    const encoder = new TextEncoder();
 
     return new Response(stream, {
       headers: {

@@ -70,7 +70,6 @@ export function useCustomChat({
 
         setMessages((messages) => [...messages, assistantMessage]);
 
-        // First, make a POST request to start the streaming response
         const response = await fetch(api, {
           method: "POST",
           headers: {
@@ -87,38 +86,18 @@ export function useCustomChat({
         }
 
         if (!response.ok) {
-          throw new Error(`HTTP error! status: ${response.status}`);
+          const errorText = await response.text();
+          const errorMessage = `HTTP error! status: ${response.status}, body: ${errorText}`;
+          console.error("Fetch error:", errorMessage);
+          throw new Error(errorMessage);
         }
 
         if (!response.body) {
-          const contentType = response.headers.get("Content-Type") || "";
-          let content = "";
-          if (contentType.includes("application/json")) {
-            const data = await response.json();
-            content = data?.message || data?.content || "";
-          } else {
-            content = await response.text();
-          }
-          setMessages((messages) =>
-            messages.map((message) =>
-              message.role === "assistant" && message.content === ""
-                ? { ...message, content }
-                : message
-            )
-          );
-          if (onFinish) {
-            const lastAssistant = [...messages]
-              .reverse()
-              .find((m) => m.role === "assistant" && m.content === "");
-            if (lastAssistant) {
-              onFinish({ ...lastAssistant, content });
-            }
-          }
+          console.warn("Response body is empty.");
           setIsLoading(false);
           return;
         }
 
-        // Handle the SSE response
         const reader = response.body.getReader();
         const decoder = new TextDecoder();
         let content = "";
@@ -128,9 +107,16 @@ export function useCustomChat({
           while (true) {
             const { value, done } = await reader.read();
 
-            if (done) break;
+            if (done) {
+              console.log("Stream finished.");
+              if (onFinish) {
+                onFinish({ ...assistantMessage, content });
+              }
+              break;
+            }
 
-            buffer += decoder.decode(value, { stream: true });
+            const chunk = decoder.decode(value, { stream: true });
+            buffer += chunk;
 
             const events = buffer.split("\n\n");
             buffer = events.pop() || "";
@@ -144,6 +130,7 @@ export function useCustomChat({
               const data = dataMatch[1];
 
               if (data === "[DONE]") {
+                console.log("[DONE] signal received.");
                 if (onFinish) {
                   onFinish({ ...assistantMessage, content });
                 }
@@ -151,7 +138,7 @@ export function useCustomChat({
               }
 
               content += data;
-
+              console.log("Received data chunk:", data);
               setMessages((messages) =>
                 messages.map((message) =>
                   message.id === assistantMessage.id
@@ -163,10 +150,12 @@ export function useCustomChat({
           }
         };
 
+        console.log("Starting to process stream.");
         await processStream();
       } catch (err: any) {
         if (err.name !== "AbortError") {
           const error = err instanceof Error ? err : new Error(String(err));
+          console.error("Stream processing error:", error);
           setError(error);
           if (onError) {
             onError(error);
@@ -175,6 +164,7 @@ export function useCustomChat({
       } finally {
         setIsLoading(false);
         abortControllerRef.current = null;
+        console.log("Fetch and stream processing completed.");
       }
     },
     [api, input, isLoading, messages, onError, onResponse, onFinish]
@@ -184,25 +174,28 @@ export function useCustomChat({
     if (abortControllerRef.current) {
       abortControllerRef.current.abort();
       abortControllerRef.current = null;
+      console.log("Stream aborted.");
     }
 
     if (eventSourceRef.current) {
       eventSourceRef.current.close();
       eventSourceRef.current = null;
+      console.log("EventSource closed.");
     }
 
     setIsLoading(false);
   }, []);
 
-  // Clean up on unmount
   useEffect(() => {
     return () => {
       if (abortControllerRef.current) {
         abortControllerRef.current.abort();
+        console.log("Unmounting: Stream aborted.");
       }
 
       if (eventSourceRef.current) {
         eventSourceRef.current.close();
+        console.log("Unmounting: EventSource closed.");
       }
     };
   }, []);

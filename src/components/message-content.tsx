@@ -1,7 +1,6 @@
 "use client";
 
 import type React from "react";
-
 import { useState, useEffect } from "react";
 import { CodeBlock } from "@/components/code-block";
 
@@ -16,18 +15,23 @@ export function MessageContent({ content }: MessageContentProps) {
 
   useEffect(() => {
     // Parse the content to identify code blocks
-    const codeBlockRegex = /```(\w+)?\n([\s\S]*?)```/g;
+    // Updated regex to handle both escaped and unescaped backticks
+    const codeBlockRegex =
+      /(?:\\?```|```)([\w]*)?(?:\n|\r\n)([\s\S]*?)(?:\\?```|```)/g;
     const parts: React.ReactNode[] = [];
 
     let lastIndex = 0;
     let match;
 
-    while ((match = codeBlockRegex.exec(content)) !== null) {
+    // First, unescape any escaped backticks
+    const normalizedContent = content.replace(/\\`/g, "`");
+
+    while ((match = codeBlockRegex.exec(normalizedContent)) !== null) {
       // Add text before the code block
       if (match.index > lastIndex) {
         parts.push(
           <p key={`text-${lastIndex}`} className="whitespace-pre-wrap">
-            {content.substring(lastIndex, match.index)}
+            {normalizedContent.substring(lastIndex, match.index)}
           </p>
         );
       }
@@ -47,10 +51,10 @@ export function MessageContent({ content }: MessageContentProps) {
     }
 
     // Add any remaining text after the last code block
-    if (lastIndex < content.length) {
+    if (lastIndex < normalizedContent.length) {
       parts.push(
         <p key={`text-${lastIndex}`} className="whitespace-pre-wrap">
-          {content.substring(lastIndex)}
+          {normalizedContent.substring(lastIndex)}
         </p>
       );
     }
@@ -60,7 +64,7 @@ export function MessageContent({ content }: MessageContentProps) {
         ? parts
         : [
             <p key="text" className="whitespace-pre-wrap">
-              {content}
+              {normalizedContent}
             </p>,
           ]
     );

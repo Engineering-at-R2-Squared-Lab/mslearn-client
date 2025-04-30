@@ -70,8 +70,8 @@ export function CodeBlock({ language, value, className }: CodeBlockProps) {
           </Button>
         </div>
       </div>
-      <pre className="p-4 overflow-x-auto">
-        <code className="text-sm text-gray-100">{value}</code>
+      <pre className="p-4 overflow-x-auto whitespace-pre-wrap">
+        <code className="text-sm text-gray-100 whitespace-pre">{value}</code>
       </pre>
     </div>
   );
