@@ -58,19 +58,16 @@ export function useCustomChat({
       setIsLoading(true);
       setError(null);
 
-      // Create a new AbortController for this request
       abortControllerRef.current = new AbortController();
       const signal = abortControllerRef.current.signal;
 
       try {
-        // Create a new assistant message
         const assistantMessage: Message = {
           id: crypto.randomUUID(),
           role: "assistant",
           content: "",
         };
 
-        // Add the empty assistant message to the state
         setMessages((messages) => [...messages, assistantMessage]);
 
         // First, make a POST request to start the streaming response
@@ -94,7 +91,31 @@ export function useCustomChat({
         }
 
         if (!response.body) {
-          throw new Error("Response body is null");
+          const contentType = response.headers.get("Content-Type") || "";
+          let content = "";
+          if (contentType.includes("application/json")) {
+            const data = await response.json();
+            content = data?.message || data?.content || "";
+          } else {
+            content = await response.text();
+          }
+          setMessages((messages) =>
+            messages.map((message) =>
+              message.role === "assistant" && message.content === ""
+                ? { ...message, content }
+                : message
+            )
+          );
+          if (onFinish) {
+            const lastAssistant = [...messages]
+              .reverse()
+              .find((m) => m.role === "assistant" && m.content === "");
+            if (lastAssistant) {
+              onFinish({ ...lastAssistant, content });
+            }
+          }
+          setIsLoading(false);
+          return;
         }
 
         // Handle the SSE response
@@ -109,23 +130,19 @@ export function useCustomChat({
 
             if (done) break;
 
-            // Decode the chunk and add it to the buffer
             buffer += decoder.decode(value, { stream: true });
 
-            // Process complete SSE events in the buffer
             const events = buffer.split("\n\n");
-            buffer = events.pop() || ""; // Keep the last incomplete event in the buffer
+            buffer = events.pop() || "";
 
             for (const event of events) {
               if (!event.trim()) continue;
 
-              // Extract the data from the SSE event
               const dataMatch = event.match(/^data: (.*)$/m);
               if (!dataMatch) continue;
 
               const data = dataMatch[1];
 
-              // Check if this is the end marker
               if (data === "[DONE]") {
                 if (onFinish) {
                   onFinish({ ...assistantMessage, content });
@@ -133,10 +150,8 @@ export function useCustomChat({
                 break;
               }
 
-              // Add the chunk to the content
               content += data;
 
-              // Update the assistant message with the new content
               setMessages((messages) =>
                 messages.map((message) =>
                   message.id === assistantMessage.id
